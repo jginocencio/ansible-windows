@@ -1,0 +1,101 @@
+---
+  - name: Windows | Install .NET Framework 4.5
+    win_feature:
+      name: NET-Framework-45-Features
+      state: present
+      include_sub_features: true
+
+  - name: Create Temp folder
+    win_file:
+      path: C:\SqlBinaries
+      state: directory
+
+  - name : Create installer directory
+    win_file:
+      path: c:\sql2019
+      state: directory
+
+  - name: Download MS SQl Iso
+    win_get_url:
+      url: https://dearmstaging.blob.core.windows.net/artifacts/installer/en_sql_server_2019_developer_x64_dvd_e5ade34a.iso?sv=2019-02-02&ss=bfqt&srt=sco&sp=r&se=2021-11-06T15:11:28Z&st=2020-01-22T07:11:28Z&spr=https&sig=exPETAomDHKE9P9mVlqaRo37qgXqgdMo1FrPWxHG054%3D
+      dest: C:\SqlBinaries\en_sql_server_2019_developer_x64_dvd_e5ade34a.iso
+
+  - name: Mount MSSql Iso Image
+    win_disk_image:
+      image_path: C:\SqlBinaries\en_sql_server_2019_developer_x64_dvd_e5ade34a.iso
+      state: present
+    register: disk_image_out
+
+  - name: Debug Path
+    debug:
+      msg: This is the Iso Path {{ disk_image_out.mount_path }}
+ 
+  - name: Copy Binaries
+    win_copy:
+      src: '{{ disk_image_out.mount_path }}'
+      dest: c:\sql2019
+      remote_src: yes
+
+  - name: Un-mount Disk
+    win_disk_image:
+      image_path: C:\SqlBinaries\en_sql_server_2019_developer_x64_dvd_e5ade34a.iso
+      state: absent
+
+  - name: Install SqlDsc
+    win_psmodule:
+      name: SqlServerDsc
+      state: present
+ 
+  - name: Copy DSC Configuration Script
+    win_copy:
+      src: psscript
+      dest: C:\ansibletemp
+  
+  - name: Run Dsc Configuration
+    win_shell: C:\ansibletemp\psscript\SQLDsc.ps1
+    register: dsc_configuration_result
+
+  - name: Collect Dsc configurat result
+    debug:
+      msg: "{{dsc_configuration_result}}"
+
+ # - name: Remove Binaries
+ #   win_file:
+ #     path: C:\SqlBinaries
+ #     state: absent
+
+ # - name: Remove extracted Binaries
+ #   win_file:
+ #     path: c:\sql2019
+ #     state: absent
+
+ # - name: Remove Ansible temp 
+ #   win_file:
+ #     path: C:\ansibletemp
+ #     state: absent
+ 
+  - name: Set Machine dns
+    win_dns_client:
+      adapter_names: Ethernet
+      ipv4_addresses: 
+      - "{{domain_primary_dns}}"
+      - "{{domain_secondary_dns}}"
+    register: dns_result
+
+  - name: Join Machine to Domain
+    win_domain_membership:
+      dns_domain_name: "{{dns_domain_name}}"
+      domain_admin_user: "{{dns_domain_name}}\\{{domain_admin_user}}"
+      domain_admin_password: "{{domain_admin_password}}"
+      state: domain
+    register: domain_state
+ 
+  - name: Restart Machine
+    win_reboot:
+      connect_timeout: 15
+      post_reboot_delay: 15
+      reboot_timeout: 200
+
+  - name: Wait for system to become reachable over winRm
+    wait_for_connection:
+      timeout: 900

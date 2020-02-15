@@ -1,0 +1,100 @@
+ ---
+  - name: Windows |   Install .Net Framework 4.5
+    win_feature:
+      name: NET-Framework-45-Features
+      state: present
+      include_sub_features: true
+
+ # Configure ADDS
+  - name: Install AD-Domain-Services Features
+    win_feature:
+      name: AD-Domain-Services
+      include_management_tools: true
+      include_sub_features: true
+      state: present
+    register: adds_result
+
+  - name: Collect ADDS provision result
+    debug:
+      msg: "{{adds_result}}"
+
+  - name: pause for 10 seconds before provisioning another feature
+    pause:
+      seconds: 10
+
+ # Configure DNS Feature
+
+  - name: Install DNS SubFeature
+    win_feature:
+      name: DNS
+      include_sub_features: true
+      include_management_tools: true
+      state: present
+    register: dns_result
+
+  - name: Collect dns Provision result
+    debug:
+      msg:  "{{dns_result}}"
+
+  - name: Reboot after ADDS Configuration
+    win_reboot:
+      connect_timeout: 15
+      post_reboot_delay: 15
+    when: adds_result.reboot_required
+
+  - name: Wait for system to become reachable over WinRM
+    wait_for_connection:
+    timeout: 900
+
+  - name: Initialize Forest
+    win_domain:
+      dns_domain_name: "{{dns_domain_name}}"
+      safe_mode_password: "{{safe_mode_password}}"
+    register: create_forest_result
+
+  - name: Collect computer result
+    debug:
+      msg: "{{create_forest_result}}"
+
+  - name: Reboot after forest creation
+    win_reboot:
+      connect_timeout: 15
+      post_reboot_delay: 15
+      reboot_timeout: 200
+    when: create_forest_result.reboot_required
+
+  - name: Wait for system to become reachable over WinRM
+    wait_for_connection:
+      timeout: 900
+
+  - name: ensure ADWS service is started
+    win_service:
+      name: ADWS
+      state: started
+    register: service_status_results
+
+  - name: Collect ADWS Service status
+    debug:
+      msg: "{{service_status_results}}"
+
+  - name: pause for 10 seconds before provisioning another feature
+    pause:
+      seconds: 600
+      
+  - name: Ensure ActiveDirectory service account is present
+    win_domain_user:
+      name: "{{domain_user_name}}"
+      firstname: "{{domain_user_firstname}}"
+      surname: "{{domain_user_surname}}"
+      password: "{{domain_user_password}}"
+      state: present
+      groups:
+        - Domain Admins
+        - Enterprise Admins
+
+  - name: Add service account to local admnistrator
+    win_group_membership:
+      name: Administrators
+      members:
+        - "{{dns_domain_name}}\\{{domain_user_name}}"
+      state: present

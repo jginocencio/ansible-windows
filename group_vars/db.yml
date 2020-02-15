@@ -1,0 +1,12 @@
+---
+ansible_user: myAdmin
+ansible_password: 123456Aa
+ansible_port: 5985
+ansible_connection: winrm
+ansible_winrm_transport: basic
+ansible_winrm_cert_validation: ignore
+dns_domain_name: ccorp.local
+domain_admin_user: myAdmin
+domain_admin_password: 123456Aa
+domain_primary_dns: 10.0.0.5
+domain_secondary_dns: 8.8.8.8

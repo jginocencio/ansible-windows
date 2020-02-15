@@ -1,0 +1,52 @@
+---
+  - name: Windows |   Install .Net Framework 4.5
+    win_feature:
+      name: NET-Framework-45-Features
+      state: present
+      include_sub_features: true
+
+  - name: Ensure IIS Web server is installed
+    win_feature:
+      name: Web-Server
+      state: present
+
+  - name: Install IIS (Web-Server and Web-Common-Http
+    win_feature:
+      name:
+      - Web-Server
+      - Web-Common-Http
+      state: present
+
+  - name: Install IIS Web-Server with sub features and management tools
+    win_feature:
+      name: Web-Server
+      state: present
+      include_sub_features: yes
+      include_management_tools: yes
+    register: win_feature
+
+  - name: Set Machine dns
+    win_dns_client:
+      adapter_names: Ethernet
+      ipv4_addresses:
+        - "{{domain_primary_dns}}"
+        - "{{domain_secondary_dns}}"
+    register: dns_result
+
+  - name: Join Machine to Domain
+    win_domain_membership:
+      dns_domain_name: "{{dns_domain_name}}"
+      domain_admin_user: "{{dns_domain_name}}\\{{domain_admin_user}}"
+      domain_admin_password: "{{domain_admin_password}}"
+      state: domain
+    register: domain_state
+
+  - name: Restart Machine After Joining domain
+    win_reboot:
+      connect_timeout: 15
+      post_reboot_delay: 15
+      reboot_timeout: 200
+
+  - name: Wait for system to become reachable
+    wait_for_connection:
+      timeout: 900 
